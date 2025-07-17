@@ -5,6 +5,7 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 import math
+import numpy as np
 
 INTERATIVO_ROI = False # True: abre a janela p/ escolher região de interesse
 
@@ -37,11 +38,10 @@ if SALVAR_DEBUG:  os.makedirs(DIR_DEBUGROI, exist_ok=True)
 # configura Tesseract
 pytesseract.pytesseract.tesseract_cmd = TESSERACT_EXE
 OCR_CONFIG = (
-    "--oem 1 "                    
-    "--psm 7 "                    # uma linha
-    "-c tessedit_char_whitelist=0123456789. "
-    "-c classify_bln_numeric_mode=1 " )  # só dicionário numérico
-
+    "--oem 1 "      # Tesseract usará apenas o  mecanismo LSTM,baseado em redes neurais recorrentes
+    "--psm 7 "                    # Uma unica linha de texto
+    "-c tessedit_char_whitelist=0123456789. " # só lê números e ponto e espaço
+    "-c classify_bln_numeric_mode=1 " )  # só dicionário numérico, força modo numérico
 
 # abre vídeo
 cap = cv2.VideoCapture(VIDEO_PATH)
@@ -168,13 +168,62 @@ df_merged = pd.merge_asof(
 # salva combinado viscosidade e temperatura
 df_merged.to_csv("temp_vs_visc.csv", index=False, sep=";")
 
-# gráfico
-plt.figure(figsize = (10,5))
-plt.scatter(df_merged["viscosidade_cP"],
-            df_merged["temperatura_C"], c="r",s=10)
-plt.ylabel("Temperatura (°C)")
-plt.xlabel("Viscosidade (cP)")
-plt.title("Viscosidade vs. Temperatura")
+# Cálculo da viscosidade teórica
+
+# df_merged["viscosidade_teorica_cP"] = 11230 * np.exp(-0.0905 * df_merged["temperatura_C"])
+x = df_merged["temperatura_C"]
+df_merged["viscosidade_teorica_cP"] = (
+    12059 + (-1283) * x + 60.3 * x**2 + (-1.51) * x**3 + 0.0205 * x**4 + (-1.43e-4) * x**5 + 3.98e-7 * x**6)
+df_merged.to_csv("valores_viscosidade_teorica.csv", index=False, sep=";")
+
+# Adimensionalização da viscosidade
+
+# Escolhe a viscosidade teórica na menor temperatura como referência
+mu0_teo = df_merged["viscosidade_teorica_cP"].iloc[0]
+mu0_exp = df_merged["viscosidade_cP"].iloc[0]
+
+# Adimensionaliza
+df_merged["viscosidade_exp_adim"] = df_merged["viscosidade_cP"] / mu0_exp
+df_merged["viscosidade_teo_adim"]= df_merged["viscosidade_teorica_cP"] / mu0_teo
+
+# Salva CSV com viscosidade adimensionalizada
+df_merged.to_csv("valores_viscosidade_adimensional.csv", index=False, sep=";")
+
+# Gráfico adimensional
+plt.figure(figsize=(10, 5))
+
+plt.plot(df_merged["temperatura_C"],
+         df_merged["viscosidade_exp_adim"],
+         "ro-", label="Experimental (adim)")
+
+plt.plot(df_merged["temperatura_C"],
+         df_merged["viscosidade_teo_adim"],
+         "bo-", label="Teórica (adim)")
+
+plt.xlabel("Temperatura (°C)")
+plt.ylabel("Viscosidade adimensionalizada (μ/μ₀)")
+plt.title("Temperatura vs. Viscosidade Adimensionalizada")
 plt.grid(True)
+plt.legend()
+plt.tight_layout()
+plt.show()
+
+#gráfico sem adimensionalizar
+
+plt.figure(figsize=(10, 5))
+
+plt.scatter(df_merged["temperatura_C"],    # dados experimentais
+            df_merged["viscosidade_cP"],
+            c="r",linewidth=2, label="Experimental")
+
+plt.scatter(df_merged["temperatura_C"],    # curva teórica
+         df_merged["viscosidade_teorica_cP"],
+         c="blue", linewidth=2, label="Teórica")
+
+plt.xlabel("Temperatura (°C)")
+plt.ylabel("Viscosidade (cP)")
+plt.title("Temperatura vs. Viscosidade")
+plt.grid(True)
+plt.legend()
 plt.tight_layout()
 plt.show()
