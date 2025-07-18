@@ -7,13 +7,14 @@ import matplotlib.pyplot as plt
 import math
 import numpy as np
 
-INTERATIVO_ROI = True # True: abre a janela p/ escolher região de interesse
+INTERATIVO_ROI = False #True: abre a janela p/escolher região de interesse
 
 # Definição da região de interesse
 if INTERATIVO_ROI:
     frame_demo = cv2.imread("frame_exemplo.jpg")
-    (x, y, w, h) = cv2.selectROI("Selecione a região de interesse e aperte ENTER",
-                                 frame_demo, False, False)
+    (x, y, w, h) = cv2.selectROI(
+        "Selecione a região de interesse e aperte ENTER",
+        frame_demo, False, False)
     cv2.destroyAllWindows()
     ROI = (x, y, w, h)
     print("ROI escolhida =", ROI)
